@@ -1,0 +1,74 @@
+
+
+services:
+    airflow:
+      build: 
+        context: ./docker
+        dockerfile: airflow.Dockerfile
+      container_name: de-zoomcamp-airflow
+      env_file:
+        - ./airflow.env
+      volumes:
+        - ./dags:/opt/airflow/dags
+        - ./plugins:/opt/airflow/plugins
+        - ./logs:/opt/airflow/logs
+        - ./data:/opt/airflow/data
+        - /var/run/docker.sock:/var/run/docker.sock
+      ports:
+        - "8081:8080"
+      healthcheck:
+        test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+        interval: 10s
+        timeout: 5s
+        retries: 3
+      depends_on:
+        postgres:
+          condition: service_healthy
+      networks:
+        - de-zoomcamp
+
+    airflow-scheduler:
+      build: 
+        context: ./docker
+        dockerfile: airflow-scheduler.Dockerfile
+      container_name: de-zoomcamp-airflow-scheduler
+      volumes:
+        - ./dags:/opt/airflow/dags
+        - ./plugins:/opt/airflow/plugins
+        - ./logs:/opt/airflow/logs
+        - ./data:/opt/airflow/data
+        - /var/run/docker.sock:/var/run/docker.sock
+      env_file:
+        - ./airflow.env
+      depends_on:
+        postgres:
+          condition: service_healthy
+      networks:
+        - de-zoomcamp
+    
+    postgres:
+      image: postgres
+      container_name: de-zoomcamp-postgres
+      environment:
+        POSTGRES_DB: airflow
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+      ports:
+        - "5433:5432"
+      volumes:
+        - de-zoomcamp-postgres-data:/var/lib/postgresql/data:rw
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+        interval: 30s
+        timeout: 10s
+        retries: 10
+        start_period: 30s
+      networks:
+        - de-zoomcamp
+
+volumes:
+  de-zoomcamp-postgres-data:
+    driver: local
+
+networks:
+  de-zoomcamp:
