@@ -119,46 +119,26 @@ with DAG(
             {"name": "tolls_amount", "type": "FLOAT"},
             {"name": "improvement_surcharge", "type": "FLOAT"},
             {"name": "total_amount", "type": "FLOAT"},
-            {"name": "congestion_surcharge", "type": "STRING"},
-            {"name": "airport_fee", "type": "FLOAT"},
+            {"name": "congestion_surcharge", "type": "FLOAT"},
         ],
         gcp_conn_id="google_cloud_default",
     )
 
-    create_ext_table = BigQueryCreateExternalTableOperator(
+    create_ext_table = BigQueryInsertJobOperator(
         task_id="create_ext_table_yellow_taxi",
-        table_resource={
-            "tableReference": {
-                "projectId": GCP_PROJECT_ID,
-                "datasetId": BQ_DATASET_NAME,
-                "tableId": f"{BQ_TABLE_NAME}_ext",
-            },
-            "externalDataConfiguration": {
-                "sourceFormat": "CSV",
-                "autodetect": True,
-                "sourceUris": ["gs://" + GCS_BUCKET_NAME + "/yellow-taxi/yellow-tripdata-{{ logical_date.strftime('%Y-%m') }}.csv.gz"],
-            },
-            "schema_fields": [
-                {"name": "VendorId", "type": "INTEGER"},
-                {"name": "tpep_pickup_datetime", "type": "TIMESTAMP"},
-                {"name": "tpep_dropoff_datetime", "type": "TIMESTAMP"},
-                {"name": "passenger_count", "type": "INTEGER"},
-                {"name": "trip_distance", "type": "FLOAT"},
-                {"name": "RatecodeID", "type": "INTEGER"},
-                {"name": "store_and_fwd_flag", "type": "STRING"},
-                {"name": "PULocationID", "type": "INTEGER"},
-                {"name": "DOLocationID", "type": "INTEGER"},
-                {"name": "payment_type", "type": "INTEGER"},
-                {"name": "fare_amount", "type": "FLOAT"},
-                {"name": "extra", "type": "FLOAT"},
-                {"name": "mta_tax", "type": "FLOAT"},
-                {"name": "tip_amount", "type": "FLOAT"},
-                {"name": "tolls_amount", "type": "FLOAT"},
-                {"name": "improvement_surcharge", "type": "FLOAT"},
-                {"name": "total_amount", "type": "FLOAT"},
-                {"name": "congestion_surcharge", "type": "FLOAT"}
-            ],
+        configuration={
+            "query": {
+                "query": f"""
+                    CREATE OR REPLACE EXTERNAL TABLE `{GCP_PROJECT_ID}.{BQ_DATASET_NAME}.{BQ_TABLE_NAME}_ext`
+                    OPTIONS (
+                        format = 'CSV',
+                        uris = ['gs://{GCS_BUCKET_NAME}/yellow-taxi/yellow-tripdata-{{{{ logical_date.strftime('%Y-%m') }}}}.csv.gz']
+                    );
+                """,
+                "useLegacySql": False,
+            }
         },
+        location=GCP_LOCATION,
         gcp_conn_id="google_cloud_default",
     )
 
@@ -176,10 +156,11 @@ with DAG(
                         COALESCE(CAST(PULocationID AS STRING), ""),
                         COALESCE(CAST(DOLocationID AS STRING), "")
                         ))) AS unique_row_id,
-                        "yellow-trip-data-""" + "{{ logical_date.strftime('%Y-%m') }}" + f""".csv" AS filename,
-                        *
-                    FROM `{GCP_PROJECT_ID}.{BQ_DATASET_NAME}.{BQ_TABLE_NAME}_ext`;
-                    """,
+                        "yellow-trip-data-{{ logical_date.strftime('%Y-%m') }}.csv" AS filename,
+                        VendorID, tpep_pickup_datetime, tpep_dropoff_datetime, passenger_count, trip_distance, RatecodeID, store_and_fwd_flag,
+                        PULocationID, DOLocationID, payment_type, fare_amount, extra, mta_tax, tip_amount, tolls_amount, improvement_surcharge, total_amount,
+                        CAST(congestion_surcharge AS FLOAT64) as congestion_surcharge
+                    FROM `{GCP_PROJECT_ID}.{BQ_DATASET_NAME}.{BQ_TABLE_NAME}_ext`""",
                 "useLegacySql": False,
             }
         },
