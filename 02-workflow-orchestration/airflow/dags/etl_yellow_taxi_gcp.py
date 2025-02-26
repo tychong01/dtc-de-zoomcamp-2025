@@ -3,13 +3,11 @@ import logging
 import requests
 from datetime import datetime
 from airflow import DAG
-from airflow.utils.dates import days_ago
 from airflow.providers.google.cloud.operators.gcs import GCSCreateBucketOperator
 from airflow.providers.google.cloud.transfers.local_to_gcs import LocalFilesystemToGCSOperator
 from airflow.providers.google.cloud.operators.bigquery import (
     BigQueryCreateEmptyDatasetOperator,
     BigQueryCreateEmptyTableOperator,
-    BigQueryCreateExternalTableOperator,
     BigQueryInsertJobOperator
 )
 from airflow.models import Variable
@@ -20,6 +18,7 @@ GCP_LOCATION = "asia-southeast1"
 GCS_BUCKET_NAME = "dtc-zoomcamp-tychong"
 BQ_DATASET_NAME = "de_zoomcamp"
 BQ_TABLE_NAME = "yellow_taxi_trips_raw"
+GCS_PREFIX = "raw/yellow-taxi"
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -79,7 +78,7 @@ with DAG(
     upload_to_gcs = LocalFilesystemToGCSOperator(
         task_id="upload_to_gcs",
         src="/opt/airflow/data/yellow-tripdata-{{ logical_date.strftime('%Y-%m') }}.csv.gz",
-        dst="yellow-taxi/yellow-tripdata-{{ logical_date.strftime('%Y-%m') }}.csv.gz",
+        dst=f"{GCS_PREFIX}/{{{{ logical_date.strftime('%Y') }}}}/yellow-tripdata-{{{{ logical_date.strftime('%Y-%m') }}}}.csv.gz",
         bucket=GCS_BUCKET_NAME,
         gcp_conn_id="google_cloud_default",
     
@@ -132,7 +131,7 @@ with DAG(
                     CREATE OR REPLACE EXTERNAL TABLE `{GCP_PROJECT_ID}.{BQ_DATASET_NAME}.{BQ_TABLE_NAME}_ext`
                     OPTIONS (
                         format = 'CSV',
-                        uris = ['gs://{GCS_BUCKET_NAME}/yellow-taxi/yellow-tripdata-{{{{ logical_date.strftime('%Y-%m') }}}}.csv.gz']
+                        uris = ['gs://{GCS_BUCKET_NAME}/{GCS_PREFIX}/{{{{ logical_date.strftime('%Y') }}}}/yellow-tripdata-{{{{ logical_date.strftime('%Y-%m') }}}}.csv.gz']
                     );
                 """,
                 "useLegacySql": False,

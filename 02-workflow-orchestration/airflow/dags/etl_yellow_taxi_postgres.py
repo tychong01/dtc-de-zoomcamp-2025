@@ -28,7 +28,7 @@ default_args = {
 
 
 with DAG(
-    dag_id='etl_yellow_taxi_data',
+    dag_id='etl_yellow_taxi_postgres',
     default_args=default_args,
     schedule_interval='@monthly',
     catchup=True,
